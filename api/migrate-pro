@@ -1,0 +1,110 @@
+<?php
+/**
+ * Migration: Add user_profiles columns to users table
+ * This script adds the missing columns and optionally migrates data
+ */
+
+// Turn off error display
+error_reporting(0);
+ini_set('display_errors', 0);
+
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../includes/Database.php';
+require_once __DIR__ . '/../../includes/Response.php';
+
+header('Content-Type: application/json');
+
+try {
+    $db = Database::getInstance();
+    $conn = $db->getConnection();
+    
+    echo "Starting migration...\n";
+    
+    // Columns to add from user_profiles to users
+    $columnsToAdd = [
+        'bio' => 'TEXT DEFAULT NULL',
+        'location' => 'VARCHAR(255) DEFAULT NULL',
+        'website' => 'VARCHAR(255) DEFAULT NULL',
+        'date_of_birth' => 'DATE DEFAULT NULL',
+        'preferences' => 'LONGTEXT DEFAULT NULL'
+    ];
+    
+    // Check existing columns in users
+    $result = $conn->query("DESCRIBE users");
+    $existingColumns = [];
+    while ($row = $result->fetch_assoc()) {
+        $existingColumns[] = $row['Field'];
+    }
+    
+    $addedColumns = [];
+    
+    foreach ($columnsToAdd as $column => $definition) {
+        if (!in_array($column, $existingColumns)) {
+            $sql = "ALTER TABLE users ADD COLUMN {$column} {$definition}";
+            if ($conn->query($sql)) {
+                echo "Added column: {$column}\n";
+                $addedColumns[] = $column;
+            } else {
+                echo "Warning: Failed to add {$column}: " . $conn->error . "\n";
+            }
+        } else {
+            echo "Column already exists: {$column}\n";
+        }
+    }
+    
+    // Check if user_profiles table exists and has data
+    $result = $conn->query("SHOW TABLES LIKE 'user_profiles'");
+    if ($result->num_rows > 0) {
+        echo "\nuser_profiles table exists. Checking for data to migrate...\n";
+        
+        // Check if user_profiles has any rows
+        $result = $conn->query("SELECT COUNT(*) as cnt FROM user_profiles");
+        $row = $result->fetch_assoc();
+        
+        if ($row['cnt'] > 0) {
+            echo "Migrating {$row['cnt']} profile records...\n";
+            
+            // Migrate data
+            $migrationSql = "
+                UPDATE users u 
+                INNER JOIN user_profiles p ON u.id = p.user_id 
+                SET 
+                    u.bio = COALESCE(u.bio, p.bio),
+                    u.location = COALESCE(u.location, p.location),
+                    u.website = COALESCE(u.website, p.website),
+                    u.date_of_birth = COALESCE(u.date_of_birth, p.date_of_birth),
+                    u.preferences = COALESCE(u.preferences, p.preferences)
+            ";
+            
+            if ($conn->query($migrationSql)) {
+                $affected = $conn->affected_rows;
+                echo "Migrated {$affected} profile records.\n";
+            } else {
+                echo "Warning: Migration failed: " . $conn->error . "\n";
+            }
+        } else {
+            echo "No data to migrate (user_profiles is empty).\n";
+        }
+        
+        // Optionally drop user_profiles table
+        echo "\nTo drop user_profiles table, run:\n";
+        echo "DROP TABLE IF EXISTS user_profiles;\n";
+    } else {
+        echo "\nuser_profiles table does not exist. No migration needed.\n";
+    }
+    
+    echo "\nMigration completed successfully!\n";
+    echo "\nColumns added: " . (empty($addedColumns) ? 'None (already exist)' : implode(', ', $addedColumns)) . "\n";
+    
+    Response::success('Migration completed successfully', [
+        'columns_added' => $addedColumns
+    ]);
+    
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Migration failed',
+        'error' => $e->getMessage()
+    ]);
+}

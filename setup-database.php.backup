@@ -1,0 +1,64 @@
+<?php
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "KagomaEnter";
+$socket = "/opt/lampp/var/mysql/mysql.sock";
+
+$conn = new mysqli($servername, $username, $password, $dbname, 3306, $socket);
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+echo "Connected. Setting up database...\n\n";
+
+$tables = [
+    "CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, email VARCHAR(150) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL, avatar VARCHAR(255), bio TEXT, role ENUM('user', 'admin') DEFAULT 'user', is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS subscription_plans (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50) NOT NULL, description TEXT, price DECIMAL(10,2) NOT NULL, billing_cycle ENUM('monthly', 'yearly') DEFAULT 'monthly', features TEXT, is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS genres (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50) NOT NULL UNIQUE, slug VARCHAR(50) NOT NULL UNIQUE, description TEXT, is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS content (id INT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(200) NOT NULL, slug VARCHAR(200) NOT NULL UNIQUE, description TEXT, thumbnail VARCHAR(255), video_url VARCHAR(500), video_path VARCHAR(500), video_quality ENUM('480p', '720p', '1080p', '4K') DEFAULT '1080p', duration INT DEFAULT 0, release_year INT, content_type ENUM('movie', 'series', 'live', 'documentary', 'anime') DEFAULT 'movie', age_rating VARCHAR(10) DEFAULT 'PG-13', rating DECIMAL(3,2) DEFAULT 0.00, view_count INT DEFAULT 0, is_featured TINYINT(1) DEFAULT 0, is_premium TINYINT(1) DEFAULT 0, is_active TINYINT(1) DEFAULT 1, published_at DATETIME, uploaded_by INT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS content_genre (id INT AUTO_INCREMENT PRIMARY KEY, content_id INT NOT NULL, genre_id INT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_cg (content_id, genre_id))",
+    "CREATE TABLE IF NOT EXISTS episodes (id INT AUTO_INCREMENT PRIMARY KEY, content_id INT NOT NULL, season_id INT, episode_number INT NOT NULL, title VARCHAR(200) NOT NULL, description TEXT, thumbnail VARCHAR(255), video_url VARCHAR(500), video_path VARCHAR(500), video_quality ENUM('480p', '720p', '1080p', '4K') DEFAULT '1080p', duration INT DEFAULT 0, release_date DATE, is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS channels (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, name VARCHAR(100) NOT NULL, slug VARCHAR(100) NOT NULL UNIQUE, description TEXT, banner VARCHAR(255), subscriber_count INT DEFAULT 0, is_verified TINYINT(1) DEFAULT 0, is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS watch_history (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, content_id INT, episode_id INT, progress INT DEFAULT 0, completed TINYINT(1) DEFAULT 0, last_watched_at DATETIME DEFAULT CURRENT_TIMESTAMP, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS favorites (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, content_id INT, episode_id INT, type ENUM('favorite', 'watchlater') DEFAULT 'favorite', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_uf (user_id, content_id, type))",
+    "CREATE TABLE IF NOT EXISTS ratings (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, content_id INT NOT NULL, rating TINYINT(1) NOT NULL, review TEXT, is_spoiler TINYINT(1) DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_ur (user_id, content_id))",
+    "CREATE TABLE IF NOT EXISTS comments (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, content_id INT, episode_id INT, parent_id INT, text TEXT NOT NULL, is_edited TINYINT(1) DEFAULT 0, is_active TINYINT(1) DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS playlists (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, name VARCHAR(100) NOT NULL, description TEXT, is_public TINYINT(1) DEFAULT 1, item_count INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS notifications (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, type VARCHAR(50) NOT NULL, title VARCHAR(200) NOT NULL, message TEXT, data JSON, is_read TINYINT(1) DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)"
+];
+
+foreach ($tables as $i => $sql) {
+    if ($conn->query($sql)) echo "OK: Table " . ($i + 1) . "\n";
+    else echo "Error: " . $conn->error . "\n";
+}
+
+echo "\n--- Seeding Data ---\n";
+
+$genres = [['Action', 'action'], ['Comedy', 'comedy'], ['Drama', 'drama'], ['Horror', 'horror'], ['Sci-Fi', 'sci-fi'], ['Romance', 'romance'], ['Thriller', 'thriller'], ['Documentary', 'documentary'], ['Animation', 'animation'], ['Fantasy', 'fantasy']];
+foreach ($genres as $g) { $conn->query("INSERT IGNORE INTO genres (name, slug) VALUES ('$g[0]', '$g[1]')"); }
+echo "Genres done\n";
+
+$plans = [['Free', 'Basic free access', 0], ['Basic', 'Great for casual viewers', 9.99], ['Premium', 'Best value', 19.99]];
+foreach ($plans as $p) { $conn->query("INSERT IGNORE INTO subscription_plans (name, description, price) VALUES ('$p[0]', '$p[1]', $p[2])"); }
+echo "Plans done\n";
+
+$users = [['Saimaly Ethomas', 'saimalyethomas@gmail.com', 'password123', 'admin'], ['John Doe', 'john@example.com', 'password123', 'user']];
+foreach ($users as $u) { $hash = password_hash($u[2], PASSWORD_DEFAULT); $conn->query("INSERT IGNORE INTO users (name, email, password, role) VALUES ('$u[0]', '$u[1]', '$hash', '$u[3]')"); }
+echo "Users done\n";
+
+$content = [
+    ['The Last Adventure', 'the-last-adventure', 'Epic journey of three friends seeking legendary treasure.', '1080p', 7200, 2024, 'movie', 'PG-13', 4.5, 15000, 1, 0],
+    ['Space Odyssey', 'space-odyssey', 'Humanity explores the farthest reaches of the galaxy.', '4K', 9000, 2024, 'movie', 'PG-13', 4.8, 25000, 1, 1],
+    ['Love in Paris', 'love-in-paris', 'Two strangers meet in the City of Light.', '1080p', 5400, 2023, 'movie', 'PG', 4.2, 12000, 0, 0],
+    ['The Haunted Mansion', 'the-haunted-mansion', 'A family discovers their home is haunted.', '1080p', 6300, 2024, 'movie', 'PG-13', 4.0, 18000, 0, 0],
+    ['Tech Giants', 'tech-giants', 'Rise of technology companies documentary.', '1080p', 5400, 2024, 'documentary', 'PG', 4.6, 8000, 0, 0]
+];
+foreach ($content as $c) { $conn->query("INSERT IGNORE INTO content (title, slug, description, video_quality, duration, release_year, content_type, age_rating, rating, view_count, is_featured, is_premium) VALUES ('$c[0]', '$c[1]', '$c[2]', '$c[3]', $c[4], $c[5], '$c[6]', '$c[7]', $c[8], $c[9], $c[10], $c[11])"); }
+echo "Content done\n";
+
+echo "\n=== Setup Complete! ===\n";
+echo "Admin: saimalyethomas@gmail.com / password123\n";
+echo "User: john@example.com / password123\n";
+
+$conn->close();

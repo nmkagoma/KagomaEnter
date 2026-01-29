@@ -1,0 +1,38 @@
+# XAMPP/LAMP development
+error_log
+*.log
+logs/
+
+# Uploads directory (should be managed separately)
+uploads/
+# !uploads/.gitkeep  # Uncomment if you want to keep empty uploads dir
+
+#frontend/build directory
+frontend/
+
+
+# Environment/config files
+config/database.php
+config/*.local.php
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
+# Composer (if you use it)
+vendor/
+composer.lock
+
+# Node modules (if you use frontend build)
+node_modules/
